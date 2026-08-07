@@ -1,0 +1,119 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmation code</title>
+    <style>
+        /* Базовые стили для почтовых клиентов – только то, что поддерживается */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f4f7fc;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 40px 30px;
+        }
+
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eaeef3;
+        }
+
+            .header h1 {
+                font-size: 24px;
+                color: #1a2a3a;
+                margin: 0;
+            }
+
+        .content {
+            padding: 30px 0;
+            text-align: center;
+        }
+
+        .code-box {
+            background: #f0f4f9;
+            border-radius: 12px;
+            padding: 20px;
+            display: inline-block;
+            letter-spacing: 8px;
+            font-size: 36px;
+            font-weight: bold;
+            color: #1a73e8;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+        }
+
+        .info {
+            font-size: 16px;
+            color: #3d4a5a;
+            line-height: 1.6;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #7a8a9a;
+            border-top: 1px solid #eaeef3;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+
+            .footer a {
+                color: #1a73e8;
+                text-decoration: none;
+            }
+    </style>
+</head>
+<body style="margin:0; padding:20px; background-color:#f4f7fc; font-family:Arial, sans-serif;">
+    <table align="center" cellpadding="0" cellspacing="0" width="100%" style="max-width:500px; background-color:#ffffff; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,0.1); padding:40px 30px;">
+        <tr>
+            <td>
+                <!-- Шапка -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #eaeef3; padding-bottom:20px;">
+                    <tr>
+                        <td style="text-align:center;">
+                            <h1 style="font-size:24px; color:#1a2a3a; margin:0;">Confirm email</h1>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Основной контент -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 0; text-align:center;">
+                    <tr>
+                        <td>
+                            <p style="font-size:16px; color:#3d4a5a; margin:0 0 10px;">Your confirmation code:</p>
+                            <div style="background:#f0f4f9; border-radius:12px; padding:20px; display:inline-block; letter-spacing:8px; font-size:36px; font-weight:bold; color:#1a73e8; font-family:'Courier New', monospace; margin:10px 0 20px;">
+                                123456
+                            </div>
+                            <p style="font-size:14px; color:#5a6a7a; margin:0;">Code useful <strong>5 minutes</strong>.</p>
+                            <p style="font-size:14px; color:#5a6a7a; margin:10px 0 0;">If you don't request code, just ignore it.</p>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Подвал -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eaeef3; padding-top:20px; margin-top:20px;">
+                    <tr>
+                        <td style="text-align:center; font-size:12px; color:#7a8a9a;">
+                            It's automatical message,don't respone.
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
