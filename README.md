@@ -131,69 +131,101 @@
 ## Быстрый старт
 
 ### Требования
-- .NET SDK 7.0+ (или версия, используемая в репозитории)
-- SQL Server / SQLite / PostgreSQL (или in-memory DB для разработки)
+- .NET SDK 8.0
+- SQL Server / SQLite / PostgreSQL / MySQL для базы данных
 - (Опционально) Docker и Docker Compose
 
 ### Клонирование и запуск
 1. Клонируйте репозиторий
+```
    git clone https://github.com/vuzkez/room-booking-api.git
    cd room-booking-api
+```
 
 2. Восстановите зависимости и запустите
+```
    dotnet restore
    dotnet build
    dotnet run --project src/RoomBooking.Api
+```
 
 По умолчанию API запускается на http://localhost:5000 (или как настроено в launchSettings). Swagger UI будет доступен по адресу http://localhost:5000/swagger при запуске в окружении Development.
 
 ### Конфигурация окружения
-Скопируйте и отредактируйте пример файла окружения или `appsettings.Development.json`:
+Скопируйте и отредактируйте пример файла окружения или `appsettings.template.json`:
 - Connection string: строка подключения для EF Core
 - JWT настройки: Secret, issuer, audience, время жизни токена
 - Logging: уровень логирования и вывод
+- EmailSetting: настройки для отправки Email сообщений (сервер,порт,пароль,имя отправителя и email отправителя)
+- TelegramSetting: настройка отправки сообщений через Бота (айди чата и токен бота)
 
-Пример (appsettings.Development.json)
+Пример (appsettings.template.json)
+```
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=RoomBookingDb;User Id=sa;Password=Your_password123;"
+    "DefaultConnection": ""
+  },
+  "EmailSetting": {
+    "Server": "smtp.gmail.com",
+    "Port": "587",
+    "Password": "",
+    "SenderEmail": "@gmail.com",
+    "SenderName": "RoomBookingApi"
   },
   "Jwt": {
-    "Secret": "replace-with-a-strong-secret",
+    "Key": "",
     "Issuer": "RoomBookingApi",
     "Audience": "RoomBookingClient",
-    "ExpiresMinutes": 60
-  }
+    "ExpiryInMinutes": 60
+  },
+  "TelegramSetting": {
+    "ChatId": "",
+    "BotToken": ""
+  },
+  "AllowedHosts": "*"
 }
+```
 
 Если вы используете миграции EF Core:
-- dotnet ef database update --project src/RoomBooking.Infrastructure --startup-project src/RoomBooking.Api
+```
+dotnet ef database update --project src/RoomBooking.Infrastructure --startup-project src/RoomBooking.Api
+```
 
-## Обзор API
+## Основные эндпоинты API
 
-### Основные эндпоинты (примеры)
-- GET /api/rooms — список всех комнат
-- GET /api/rooms/{id} — детали комнаты
-- POST /api/rooms — создать комнату (только admin)
-- PUT /api/rooms/{id} — обновить комнату (только admin)
-- DELETE /api/rooms/{id} — удалить комнату (только admin)
+Для доступа к защищенным маршрутам необходимо передавать заголовок:  
+`Authorization: Bearer <token>`
 
-- GET /api/bookings — список бронирований пользователя (admin видит все)
-- POST /api/bookings — создать бронирование
-- GET /api/bookings/{id} — детали бронирования
-- PUT /api/bookings/{id} — изменить бронирование
-- DELETE /api/bookings/{id} — отменить бронирование
+### Auth
+- `POST /api/auth/register` — Регистрация нового пользователя (Публичный)
+- `POST /api/auth/login` — Вход в аккаунт, возврат JWT-токена (Публичный)
+- `POST /api/auth/confirm-email` — Подтверждение email по коду (Требуется авторизация)
+- `POST /api/auth/resend-code` — Повторная отправка кода подтверждения (Требуется авторизация)
 
-### Аутентификация
-- POST /api/auth/login — возвращает JWT токен
-- Добавляйте заголовок `Authorization: Bearer <token>` к защищённым запросам
+### Rooms
+- `GET /api/rooms` — Список комнат. Поддерживает query-параметры: `minCapacity`, `location`, `IsActive`, `page`, `pageSize` (Публичный)
+- `GET /api/rooms/{id}` — Детальная информация о комнате (Публичный)
+- `POST /api/rooms` — Создание новой комнаты (Только Admin)
+- `PUT /api/rooms/{id}` — Обновление данных комнаты (Только Admin)
+- `DELETE /api/rooms/{id}` — Удаление комнаты (Только Admin)
 
-При создании бронирования необходимо валидировать:
-- Комната существует
-- Запрошенный временной интервал не пересекается с существующими подтверждёнными бронированиями для этой комнаты
-- У пользователя есть права для выполнения операции
+### Bookings
+*Все эндпоинты этого раздела требуют авторизации.*
+- `GET /api/bookings/my` — Список бронирований текущего пользователя с пагинацией (`page`, `pageSize`)
+- `GET /api/bookings/{id}` — Детали конкретного бронирования (Доступно владельцу или Admin)
+- `POST /api/bookings` — Создание нового бронирования (Применяется Rate Limiting)
+- `DELETE /api/bookings/{id}` — Отмена бронирования (Доступно владельцу или Admin)
+- `PUT /api/bookings/{id}/confirm` — Подтверждение бронирования (Только Admin)
+- `GET /api/bookings/room/{id}` — Список бронирований конкретной комнаты. Поддерживает фильтрацию: `from`, `to`, `status`, `userId`, `page`, `pageSize` (Только Admin)
 
-Пример curl для создания бронирования (замените токен и полезную нагрузку):
+Пример curl для создания бронирования (замените токен и остальное под ваш вариант):
+```
 curl -X POST http://localhost:5000/api/bookings \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
@@ -203,6 +235,7 @@ curl -X POST http://localhost:5000/api/bookings \
     "endTime": "2026-08-10T10:00:00Z",
     "title": "Sprint planning"
   }'
+```
 
 ## Тестирование
 Тесты покрывают сервисы: BookingsService, RoomsService, AuthService.
