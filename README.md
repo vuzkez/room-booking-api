@@ -164,10 +164,8 @@
 ```
    dotnet restore
    dotnet build
-   dotnet run --project src/RoomBooking.Api
+   dotnet run --project RoomBooking.Api
 ```
-
-`**src**` - Это основной путь к проекту.
 
 По умолчанию API запускается на http://localhost:5000 (или как настроено в launchSettings). Swagger UI будет доступен по адресу http://localhost:5000/swagger при запуске в окружении Development.
 
@@ -214,10 +212,8 @@
 
 Если вы используете миграции EF Core:
 ```
-dotnet ef database update --project src/RoomBooking.Infrastructure --startup-project src/RoomBooking.Api
+dotnet ef database update --project RoomBooking.Infrastructure --startup-project RoomBooking.Api
 ```
-
-`**src**` - Это основной путь к проекту.
 
 ## Основные эндпоинты API
 
