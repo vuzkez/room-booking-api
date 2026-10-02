@@ -1,183 +1,109 @@
 # Room Booking API
 
-Простой RESTful API для управления переговорными и бронированиями — пет‑проект, который был сделан чтобы попрактиковать Clean Architecture, асинхронное программирование и обработку конкурентных операций в .NET.
+Простой RESTful API для управления переговорными и бронированиями — пет‑проект, созданный, чтобы попрактиковать Clean Architecture, асинхронное программирование и обработку конкурентных операций в .NET.
 
 Проект реализует базовые функции системы бронирования: управление комнатами, бронирования с проверкой конфликтов, аутентификация и авторизация.
 
 ## Содержание
 - [Функции](#функции)
 - [Стек технологий](#стек-технологий)
-- [Обзор архитектуры](#обзор-архитектуры)
-  - [Используемые паттерны проектирования](#используемые-паттерны-проектирования)
-  - [Слои архитектуры](#слои-архитектуры)
-    - [1. API Layer (Presentation)](#1-api-layer-presentation)
-    - [2. Application Layer](#2-application-layer)
-    - [3. Domain Layer](#3-domain-layer)
-    - [4. Infrastructure Layer](#4-infrastructure-layer)
+- [Архитектура](#архитектура)
 - [Запуск приложения](#запуск-приложения)
-  - [Требования](#требования)
-  - [Клонирование и запуск](#клонирование-и-запуск)
-  - [Конфигурация окружения](#конфигурация-окружения)
-- [Обзор API](#обзор-api)
-  - [Основные эндпоинты](#основные-эндпоинты)
-    - [Auth](#auth)
-    - [Rooms](#rooms)
-    - [Bookings](#bookings)
+- [Эндпоинты API](#эндпоинты-api)
 - [Тестирование](#тестирование)
-  - [Инструменты и фреймворки](#инструменты-и-фреймворки)
-  - [Структура и подход](#структура-и-подход)
-  - [Покрытие](#покрытие)
 
 ## Функции
 - CRUD для комнат (название, вместимость, локация, цена за час)
-- Бронирования: создание, чтение, отмена
-- Предотвращение двойного бронирования при пересечениях временных интервалов
+- Бронирования: создание, чтение, отмена, подтверждение администратором
+- Предотвращение двойного бронирования при пересечении временных интервалов
 - Обработка race conditions через Optimistic Locking
-- Базовая аутентификация пользователей (JWT) и ролевой доступ (admin/user)
-- Динамический расчет стоимости с применением разных тарифов (будни/выходные)
+- Аутентификация (JWT, ASP.NET Identity) и ролевой доступ (admin/user)
+- Динамический расчёт стоимости с разными тарифами (будни/выходные)
 - Проверка доступности комнат с кешированием
-- Отправка уведомлений в Telegram при новых бронированиях
-- Email уведомления с кодами подтверждения (SMTP)
-- Rate Limiting для защиты от перегрузок
+- Уведомления в Telegram о бронированиях
+- Email с кодами подтверждения (SMTP)
+- Rate Limiting (не более 5 запросов на создание брони в минуту)
 - Документация API (Swagger / OpenAPI)
-- Unit тестирование
+- Unit-тесты
 
 ## Стек технологий
 - Язык: C#
 - Фреймворк: ASP.NET Core Web API (.NET)
-- Доступ к данным: Entity Framework Core
+- Доступ к данным: Entity Framework Core, MySQL
 - Аутентификация: JWT + ASP.NET Identity
 - Документация API: Swagger / Swashbuckle
-- Тестирование: xUnit + NSubstitute (мокирование зависимостей)
-- Внешние сервисы: Telegram Bot API, SMTP (Gmail)
+- Тестирование: xUnit + NSubstitute
+- Внешние сервисы: Telegram Bot API, SMTP (например, Gmail)
 
-## Обзор архитектуры
+## Архитектура
 
-Приложение построено на базе **Clean Architecture** с четкой структурой слоев. Каждый слой имеет свою зону ответственности и минимальные зависимости между ними. Используются паттерны и принципы проектирования для обеспечения гибкости и тестируемости кода.
+Приложение построено на **Clean Architecture**, решение разбито на проекты:
 
-### Используемые паттерны проектирования
+`RoomBookingApi.Api`: HTTP-слой: контроллеры, DTO, обработка ошибок, rate limiting, настройка JWT 
+`RoomBookingApi.Application`: Бизнес-логика: сервисы, контракты (интерфейсы), стратегии расчёта цены 
+ `RoomBookingApi.Domain`: Сущности и перечисления 
+ `RoomBookingApi.Infrastructure`: Работа с БД: `AppDbContext`, конфигурации таблиц, миграции, репозитории, Unit of Work 
+ `RoomBookingApi.Tests`: Unit-тесты 
 
-1. **Clean Architecture** — разделение на слои с чёткими границами зависимостей
-2. **Repository Pattern** — абстракция доступа к данным через интерфейсы
-3. **Unit of Work** — управление транзакциями и координация репозиториев
-4. **Dependency Injection** — внедрение зависимостей через конструкторы (встроенный DI контейнер .NET)
-5. **Strategy Pattern** — разные стратегии расчета цены (будни vs выходные) через `IPricingStrategy`
-6. **Decorator Pattern** — `CachedAvailabilityChecker` оборачивает базовый `AvailabilityChecker`
-7. **JWT** — безопасная аутентификация через токены
-8. **Optimistic Locking** — предотвращение race conditions через версии записей
+### Используемые паттерны и подходы
+- **Clean Architecture** — разделение на слои
+- **Dependency Injection** — встроенный DI-контейнер .NET
+- **Repository + Unit of Work** — абстракция над EF Core
+- **Strategy** — разные тарифы (будни/выходные) через `IPricingStrategy`
+- **Decorator** — `CachedAvailabilityChecker` оборачивает `AvailabilityChecker`
+- **Optimistic Locking** — защита от конфликтов при одновременных запросах
+- **JWT** — аутентификация через токены
 
-**Я добавил Repository и UoW для абстрагирования доступа к данным.**
-Позже я понял, что для этого проекта это было избыточно, потому что:
-- Мы используем только EF Core (один источник данных)
-- Нет сложной бизнес-логики доступа
-- Это добавило слой абстракции без практического результата
+Repository и Unit of Work я добавил для абстрагирования доступа к данным, но для этого проекта это избыточно: используется только EF Core, а `DbContext` уже реализует Unit of Work. Слой абстракции не дал практической пользы.
 
-В данном проекте `Repository + UoW` добавляют лишь лишний слой абстракции.
+### Основные компоненты
 
-### Слои архитектуры
+**API**
+- `RoomsController`, `BookingsController`, `AuthController`
+- `GlobalExceptionHandler` — централизованная обработка исключений
+- Rate limiter для создания бронирований
+- DTO: `CreateRoomRequestDto`, `UpdateRoomRequestDto`, `CreateBookingRequestDto`, `BookingResponseDto`, `LoginRequestDto`, `RegisterRequestDto`, `AuthResponseDto`
 
-#### **1. API Layer (Presentation)**
-Внешняя граница приложения, ответственная за взаимодействие с клиентами.
+**Application**
+- `BookingService` — создание, проверка конфликтов, отмена и подтверждение бронирований
+- `RoomService` — CRUD комнат, фильтрация, пагинация
+- `AuthService` — регистрация, вход, подтверждение email
+- `PricingService` + `IPricingStrategy` — расчёт стоимости
+- `IAvailabilityChecker` — проверка доступности комнаты
+- `IJwtService`, `IEmailSender`, `IEmailCodeGenerator`, `ITelegramNotifier` — контракты
 
-- **Controllers** — HTTP эндпоинты для работы с ресурсами
-  - `RoomsController` — управление комнатами (список, создание, обновление, удаление)
-  - `BookingsController` — управление бронированиями (создание, чтение, отмена)
-  - `AuthController` — аутентификация (регистрация, вход, подтверждение email)
-  - Валидация входных данных и формирование ответов
+**Domain**
+- `Room`, `Booking` (со статусом и версией для Optimistic Locking), `UserApplication`, `RoleApplication`, `EmailCode`
+- `Status` — Pending, Confirmed, Cancelled
 
-- **Middlewares & Exception Handling** — обработка глобальных операций
-  - `GlobalExceptionHandler` — централизованная обработка исключений
-  - `RateLimiter` — ограничение частоты запросов (max 5 запросов на создание брони в минуту)
-  - JWT Bearer аутентификация на каждый защищённый запрос
-
-- **DTOs (Data Transfer Objects)** — контракты обмена данными
-  - `CreateRoomRequestDto`, `UpdateRoomRequestDto` — для операций с комнатами
-  - `CreateBookingRequestDto`, `BookingResponseDto` — для операций с бронированиями
-  - `LoginRequestDto`, `RegisterRequestDto`, `AuthResponseDto` — для аутентификации
-
-#### **2. Application Layer**
-Бизнес-логика приложения, независимая от деталей реализации.
-
-- **Services** — инкапсуляция бизнес-правил
-  - `BookingService` — логика создания, валидации и отмены бронирований
-    - Проверка пересечений временных интервалов через `IAvailabilityChecker`
-    - Обработка race conditions через Optimistic Locking (версионирование)
-    - Отправка уведомлений в Telegram при создании/отмене бронирования
-  - `RoomService` — операции с комнатами (CRUD) и фильтрация
-  - `AuthService` — проверка credentials, регистрация, управление сессией
-  - `PricingService` — расчет стоимости с применением Strategy паттерна
-  - `TelegramNotifier` — отправка сообщений через Telegram Bot API
-  - `SmtpEmailSenderService` — отправка email через SMTP (подтверждение email)
-
-- **Interfaces** — контракты для инверсии зависимостей
-  - `IBookingService`, `IRoomService`, `IAuthService` — сервисные контракты
-  - `IJwtService` — интерфейс для работы с JWT токенами
-  - `IEmailSender`, `IEmailCodeGenerator` — отправка писем и генерация кодов
-  - `ITelegramNotifier` — отправка уведомлений в Telegram
-  - `IAvailabilityChecker` — проверка доступности комнат
-  - `IPricingStrategy` — интерфейс для Strategy паттерна (разные тарифы)
-
-#### **3. Domain Layer**
-Ядро приложения, содержит бизнес-сущности и правила.
-
-- **Entities** — основные модели домена
-  - `Room` — переговорная (ID, название, вместимость, локация, цена за час)
-  - `Booking` — бронирование (ID, комната, пользователь, время, статус, версия для Optimistic Locking)
-  - `RoleApplication` - роль пользователя (наследует от IdentityRole)
-  - `UserApplication` — пользователь (наследует от IdentityUser, email, роли)
-  - `EmailCode` — коды для подтверждения email с таймаутом
-
-- **Enums** — перечисления
-  - `Status` — статусы бронирований (Pending, Confirmed, Cancelled)
-
-#### **4. Infrastructure Layer**
-Техническая реализация, взаимодействие с внешними системами.
-
-- **Unit of Work Pattern**
-  - `IUnitOfWork` интерфейс — координирует работу всех репозиториев
-  - `UnitOfWork` реализация — управляет транзакциями и состоянием контекста БД
-  - Гарантирует атомарность операций при сохранении изменений
-
-- **Repositories** — доступ к данным
-  - `IBookingRepository`, `IRoomRepository`, `IEmailCodeRepository` — интерфейсы
-  - Конкретные реализации для каждого репозитория
-
-- **Database**
-  - `AppDbContext` — конфигурация модели данных (конфигурации таблиц вынесены)
-  - Маппинг сущностей на таблицы БД
-  - Миграции для версионирования схемы
+**Интеграции**
+- `TelegramNotifier` — отправка уведомлений через Telegram Bot API
+- `SmtpEmailSenderService` — отправка писем через SMTP
 
 ## Запуск приложения
 
 ### Требования
 - .NET SDK 8.0
--  MySQL для базы данных
+- MySQL
 
 ### Клонирование и запуск
-1. Клонируйте репозиторий
 ```
-   git clone https://github.com/vuzkez/room-booking-api.git
-   cd room-booking-api
-```
-
-2. Восстановите зависимости и запустите
-```
-   dotnet restore
-   dotnet build
-   dotnet run --project RoomBooking.Api
+git clone https://github.com/vuzkez/room-booking-api.git
+cd room-booking-api
+dotnet run --project RoomBookingApi.Api
 ```
 
-По умолчанию API запускается на http://localhost:5000 (или как настроено в launchSettings). Swagger UI будет доступен по адресу http://localhost:5000/swagger при запуске в окружении Development.
+API по умолчанию запускается на `http://localhost:5000` (или как настроено в `launchSettings.json`). Swagger UI доступен по адресу `http://localhost:5000/swagger` в окружении Development.
 
-### Конфигурация окружения
-Скопируйте и отредактируйте пример файла окружения или `appsettings.template.json`:
-- Connection string: строка подключения для EF Core
-- JWT настройки: Secret, issuer, audience, время жизни токена
-- Logging: уровень логирования и вывод
-- EmailSetting: настройки для отправки Email сообщений (сервер,порт,пароль,имя отправителя и email отправителя)
-- TelegramSetting: настройка отправки сообщений через Бота (айди чата и токен бота)
+### Конфигурация
+Создайте рядом с `appsettings.template.json` файл `appsettings.Development.json` (или используйте переменные окружения / user-secrets) и заполните значения.
 
-Пример (appsettings.template.json)
+- `ConnectionStrings:DefaultConnection` — строка подключения к MySQL
+- `Jwt` — `Key`, `Issuer`, `Audience`, `ExpiryInMinutes`
+- `EmailSetting` — SMTP-сервер, порт, пароль, email и имя отправителя
+- `TelegramSetting` — `ChatId` и `BotToken` бота
+
+Пример:
 ```
 {
   "Logging": {
@@ -187,7 +113,7 @@
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": ""
+    "DefaultConnection": "Server=localhost;Port=3306;Database=RoomBookingDb;User=root;Password=your_password;"
   },
   "EmailSetting": {
     "Server": "smtp.gmail.com",
@@ -210,73 +136,62 @@
 }
 ```
 
-Если вы используете миграции EF Core:
+### Миграции
+Нужен инструмент `dotnet-ef` (`dotnet tool install --global dotnet-ef`):
 ```
-dotnet ef database update --project RoomBooking.Infrastructure --startup-project RoomBooking.Api
+dotnet ef database update --project RoomBookingApi.Infrastructure --startup-project RoomBookingApi.Api
 ```
 
-## Основные эндпоинты API
+## Эндпоинты API
 
-Для доступа к защищенным маршрутам необходимо передавать заголовок:  
-`Authorization: Bearer <token>`
+Для защищённых маршрутов нужен заголовок `Authorization: Bearer <token>`.
 
 ### Auth
-- `POST /api/auth/register` — Регистрация нового пользователя (Публичный)
-- `POST /api/auth/login` — Вход в аккаунт, возврат JWT-токена (Публичный)
-- `POST /api/auth/confirm-email` — Подтверждение email по коду (Требуется авторизация)
-- `POST /api/auth/resend-code` — Повторная отправка кода подтверждения (Требуется авторизация)
+- `POST /api/auth/register` — регистрация (публичный)
+- `POST /api/auth/login` — вход, возвращает JWT (публичный)
+- `POST /api/auth/confirm-email` — подтверждение email по коду (нужна авторизация)
+- `POST /api/auth/resend-code` — повторная отправка кода (нужна авторизация)
 
 ### Rooms
-- `GET /api/rooms` — Список комнат. Поддерживает query-параметры: `minCapacity`, `location`, `IsActive`, `page`, `pageSize` (Публичный)
-- `GET /api/rooms/{id}` — Детальная информация о комнате (Публичный)
-- `POST /api/rooms` — Создание новой комнаты (Только Admin)
-- `PUT /api/rooms/{id}` — Обновление данных комнаты (Только Admin)
-- `DELETE /api/rooms/{id}` — Удаление комнаты (Только Admin)
+- `GET /api/rooms` — список комнат; параметры `minCapacity`, `location`, `IsActive`, `page`, `pageSize` (публичный)
+- `GET /api/rooms/{id}` — информация о комнате (публичный)
+- `POST /api/rooms` — создать комнату (Admin)
+- `PUT /api/rooms/{id}` — обновить комнату (Admin)
+- `DELETE /api/rooms/{id}` — удалить комнату (Admin)
 
 ### Bookings
-*Все эндпоинты этого раздела требуют авторизации.*
-- `GET /api/bookings/my` — Список бронирований текущего пользователя с пагинацией (`page`, `pageSize`)
-- `GET /api/bookings/{id}` — Детали конкретного бронирования (Доступно владельцу или Admin)
-- `POST /api/bookings` — Создание нового бронирования (Применяется Rate Limiting)
-- `DELETE /api/bookings/{id}` — Отмена бронирования (Доступно владельцу или Admin)
-- `PUT /api/bookings/{id}/confirm` — Подтверждение бронирования (Только Admin)
-- `GET /api/bookings/room/{id}` — Список бронирований конкретной комнаты. Поддерживает фильтрацию: `from`, `to`, `status`, `userId`, `page`, `pageSize` (Только Admin)
+*Все эндпоинты требуют авторизации.*
+- `GET /api/bookings/my` — мои бронирования с пагинацией (`page`, `pageSize`)
+- `GET /api/bookings/{id}` — детали брони (владелец или Admin)
+- `POST /api/bookings` — создать бронь (rate limiting)
+- `DELETE /api/bookings/{id}` — отменить бронь (владелец или Admin)
+- `PUT /api/bookings/{id}/confirm` — подтвердить бронь (Admin)
+- `GET /api/bookings/room/{id}` — брони комнаты; фильтры `from`, `to`, `status`, `userId`, `page`, `pageSize` (Admin)
 
-Пример curl для создания бронирования (замените токен и остальное под ваш вариант):
+Пример создания бронирования:
 ```
 curl -X POST http://localhost:5000/api/bookings \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
     "roomId": 1,
-    "startTime": "2026-08-10T09:00:00Z",
-    "endTime": "2026-08-10T10:00:00Z",
+    "startTime": "2027-01-10T09:00:00Z",
+    "endTime": "2027-01-10T10:00:00Z",
     "title": "Sprint planning"
   }'
 ```
 
 ## Тестирование
 
-### Инструменты и фреймворки
+Инструменты: **xUnit** и **NSubstitute** (подмена зависимостей).
 
-Проект использует следующие инструменты для тестирования:
-
-- **xUnit** — фреймворк для написания unit тестов
-- **NSubstitute** — библиотека для создания mock объектов и подмены зависимостей
-
-Запуск всех тестов:
 ```
-dotnet test
+dotnet test RoomBookingApi.Tests
 ```
 
+Тесты следуют схеме **Arrange-Act-Assert**: подготовка данных и моков → вызов метода → проверка результата и вызовов зависимостей (например, `Received(1)`).
 
-#### Структура и подход
-Все тесты строго следуют паттерну **AAA (Arrange-Act-Assert)**:
-1. **Arrange** — подготовка данных и настройка mock-объектов (например, возврат предсказуемых данных из репозитория).
-2. **Act** — вызов тестируемого метода сервиса.
-3. **Assert** — проверка возвращаемого значения и верификация вызовов зависимостей (например, `Received(1)` для проверки, что метод сохранения или отправки уведомления был вызван ровно один раз).
-
-#### Покрытие
-- **BookingService** — создание брони (с проверкой доступности и расчетом цены через реальные стратегии), отмена владельцем, подтверждение админом, получение списков с пагинацией/фильтрацией, отправка уведомлений в Telegram.
-- **AuthService** — регистрация (с назначением ролей), логин (генерация JWT), подтверждение email по коду, повторная отправка кода.
-- **RoomService** — полный CRUD, пагинация и фильтрация комнат, обработка исключений (например, выброс `NotFoundException` при удалении несуществующей комнаты).
+Покрытие:
+- **BookingService** — создание брони (проверка доступности и расчёт цены), отмена владельцем, подтверждение админом, списки с пагинацией и фильтрацией, уведомления в Telegram
+- **AuthService** — регистрация с назначением ролей, логин и генерация JWT, подтверждение email, повторная отправка кода
+- **RoomService** — CRUD, пагинация и фильтрация, обработка исключений (например, `NotFoundException` при удалении несуществующей комнаты)
