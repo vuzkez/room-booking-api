@@ -151,8 +151,7 @@
 
 ### Требования
 - .NET SDK 8.0
-- SQL Server / SQLite / PostgreSQL / MySQL для базы данных
-- (Опционально) Docker и Docker Compose
+-  MySQL для базы данных
 
 ### Клонирование и запуск
 1. Клонируйте репозиторий
