@@ -30,7 +30,7 @@
 
 ## Функции
 - CRUD для комнат (название, вместимость, локация, цена за час)
-- Бронирования: создание, чтение, изменение, отмена
+- Бронирования: создание, чтение, отмена
 - Предотвращение двойного бронирования при пересечениях временных интервалов
 - Обработка race conditions через Optimistic Locking
 - Базовая аутентификация пользователей (JWT) и ролевой доступ (admin/user)
@@ -167,6 +167,8 @@
    dotnet run --project src/RoomBooking.Api
 ```
 
+`**src**` - Это основной путь к проекту.
+
 По умолчанию API запускается на http://localhost:5000 (или как настроено в launchSettings). Swagger UI будет доступен по адресу http://localhost:5000/swagger при запуске в окружении Development.
 
 ### Конфигурация окружения
@@ -214,6 +216,8 @@
 ```
 dotnet ef database update --project src/RoomBooking.Infrastructure --startup-project src/RoomBooking.Api
 ```
+
+`**src**` - Это основной путь к проекту.
 
 ## Основные эндпоинты API
 
