@@ -20,22 +20,22 @@ namespace RoomBookingApi.Application.Services
 
         public decimal CalculatePrice(Room room, DateTime start, DateTime end)
         {
-            decimal totalPrice = 0;
+            decimal totalPrice = 0m;
             var current = start;
 
             while (current < end)
             {
-                var nextHour = current.AddHours(1);
-                if (nextHour > end) 
-                    nextHour = end;
+                var nextFiveMinute = current.AddMinutes(5);
+                if (nextFiveMinute > end)
+                    nextFiveMinute = end;
 
-                var hoursInSegment = (decimal)(nextHour - current).TotalHours;
+                var hoursInSegment = (decimal)(nextFiveMinute - current).TotalHours;
 
-                var strategy = _strategies.First(s => s.AppliesTo(current, nextHour));
+                var strategy = _strategies.First(s => s.AppliesTo(current, nextFiveMinute));
 
-                totalPrice += strategy.CalculatePrice(room, current, nextHour);
+                totalPrice += strategy.CalculatePrice(room, current, nextFiveMinute);
 
-                current = nextHour;
+                current = nextFiveMinute;
             }
 
             return totalPrice;
