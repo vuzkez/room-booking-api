@@ -11,20 +11,17 @@ namespace RoomBookingApi.Application.Services
 {
     public class EmailCodeGeneratorService : IEmailCodeGenerator
     {
-        public EmailConfirmationCode Generate(int userId)
+        public EmailConfirmationCode Generate(int userId, string? targetEmail = null)
         {
             var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString("D6");
-            var expires = DateTime.UtcNow.AddMinutes(5);
-
-            var emailCode = new EmailConfirmationCode
+            return new EmailConfirmationCode
             {
                 Code = code,
-                ExpiresAt = expires,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5),
                 UserId = userId,
-                IsUsed = false
+                IsUsed = false,
+                TargetEmail = targetEmail
             };
-
-            return emailCode;
         }
     }
 }

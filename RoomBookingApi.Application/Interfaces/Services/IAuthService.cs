@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity.Data;
-using RoomBookingApi.Application.Dto;
+﻿using RoomBookingApi.Application.Dto;
 
 namespace RoomBookingApi.Application.Interfaces.Services
 {
@@ -15,7 +9,7 @@ namespace RoomBookingApi.Application.Interfaces.Services
         /// и отправляет код подтверждения на указанный email.
         /// </summary>
         /// <param name="request">DTO с данными для регистрации (Name, Email, Password).</param>
-        /// <returns>Результат операции: успех/неудача с сообщением об ошибке или JWT-токеном.</returns>
+        /// <returns>Результат операции: успех/неудача с сообщением об ошибке.</returns>
         Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request);
 
         /// <summary>
@@ -27,20 +21,32 @@ namespace RoomBookingApi.Application.Interfaces.Services
         Task<AuthResponseDto> LoginAsync(LoginRequestDto request);
 
         /// <summary>
-        /// Подтверждает email пользователя по 6-значному коду. Проверяет, что код существует,
-        /// не истёк и не использован. Затем вызывает Identity для подтверждения email.
+        /// Подтверждает email пользователя по 6-значному коду (публичный сценарий).
+        /// Находит пользователя по email и делегирует подтверждение в <see cref="IEmailConfirmOrChange"/>.
         /// </summary>
-        /// <param name="userId">Идентификатор пользователя.</param>
+        /// <param name="email">Email пользователя.</param>
         /// <param name="code">Код подтверждения (6 цифр).</param>
         /// <returns>true — если подтверждение прошло успешно, иначе false.</returns>
-        Task<bool> ConfirmEmailAsync(int userId, string code);
+        Task<bool> ConfirmEmailAsync(string email, string code);
 
         /// <summary>
         /// Повторно отправляет код подтверждения, если пользователь не подтверждён
         /// и нет активного неиспользованного кода.
         /// </summary>
-        /// <param name="userId">Идентификатор пользователя.</param>
+        /// <param name="email">Email пользователя.</param>
         /// <returns>true — если код отправлен, иначе false.</returns>
-        Task<bool> ResendConfirmationCodeAsync(int userId);
+        Task<bool> ResendConfirmationCodeAsync(string email);
+
+        /// <summary>
+        /// Инициирует смену email: генерирует код и отправляет на новый адрес.
+        /// Требует авторизации. Возвращает false, если новый email занят,
+        /// совпадает с текущим, или уже есть активный код.
+        /// </summary>
+        Task<bool> RequestEmailChangeAsync(int userId, string newEmail);
+
+        /// <summary>
+        /// Подтверждает смену email по коду, отправленному на новый адрес.
+        /// </summary>
+        Task<bool> ConfirmEmailChangeAsync(int userId, string code);
     }
 }

@@ -20,29 +20,9 @@ namespace RoomBookingApi.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<EmailConfirmationCode?> GetByIdAsync(int id)
-        {
-            return await _context.EmailCodes.FirstOrDefaultAsync(x => x.Id == id);
-        }
-
-        public async Task<IEnumerable<EmailConfirmationCode>> GetAllAsync()
-        {
-            return await _context.EmailCodes.ToListAsync();
-        }
-
         public async Task AddAsync(EmailConfirmationCode emailConfirmationCode)
         {
             await _context.EmailCodes.AddAsync(emailConfirmationCode);
-        }
-
-        public async Task DeleteByIdAsync(int id)
-        {
-            var emailCode = await _context.EmailCodes.FirstOrDefaultAsync(x => x.Id == id);
-
-            if (emailCode == null)
-                throw new NotFoundException(nameof(EmailConfirmationCode), id);
-
-            _context.EmailCodes.Remove(emailCode);
         }
 
         public async Task UpdateAsync(EmailConfirmationCode emailConfirmationCode)

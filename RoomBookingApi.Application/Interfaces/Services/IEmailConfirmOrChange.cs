@@ -1,20 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace RoomBookingApi.Application.Interfaces.Services
+﻿public interface IEmailConfirmOrChange
 {
-    public interface IEmailConfirmOrChange
-    {
-        /// <summary>
-        /// Подтверждает текущий email пользователя или меняет его на новый, если передан newEmail.
-        /// </summary>
-        /// <param name="userId">Идентификатор пользователя.</param>
-        /// <param name="code">Код подтверждения.</param>
-        /// <param name="newEmail">Новый email (если null, то просто подтверждение).</param>
-        /// <returns>true — если операция успешна, иначе false.</returns>
-        Task<bool> TryConfirmOrChangeEmail(int userId, string code, string? newEmail = null);
-    }
+    /// <summary>
+    /// Подтверждает текущий email пользователя по коду (TargetEmail=null).
+    /// Возвращает false, если код не найден, истёк, использован или выдан для смены email.
+    /// </summary>
+    Task<bool> TryConfirmEmailAsync(int userId, string code);
+
+    /// <summary>
+    /// Меняет email пользователя на адрес из кода (TargetEmail!=null).
+    /// Возвращает false, если код не найден, истёк, использован или выдан для подтверждения.
+    /// </summary>
+    Task<bool> TryChangeEmailAsync(int userId, string code);
 }

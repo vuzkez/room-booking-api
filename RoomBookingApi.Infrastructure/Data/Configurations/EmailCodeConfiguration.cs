@@ -17,6 +17,7 @@ namespace RoomBookingApi.Infrastructure.Data.Configurations
             builder.Property(x => x.Code).IsRequired();
             builder.Property(x => x.ExpiresAt).HasColumnType("datetime").IsRequired();
             builder.Property(x => x.IsUsed).IsRequired();
+            builder.Property(x => x.TargetEmail).HasMaxLength(256);
             builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
 
             builder.HasIndex(x => x.Code);

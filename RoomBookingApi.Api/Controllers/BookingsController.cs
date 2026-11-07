@@ -46,6 +46,9 @@ namespace RoomBookingApi.Api.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 50);
+
             var filter = new BookingFilterDto
             {
                 From = from,
@@ -63,8 +66,26 @@ namespace RoomBookingApi.Api.Controllers
         public async Task<IActionResult> CreateBookingAsync([FromBody] CreateBookingRequestDto request)
         {
             var userId = GetUserId();
-            var result = await _bookingService.CreateBookingAsync(request.RoomId, userId, request.StartTime, request.EndTime);
-            return Ok(result);
+            var startUtc = request.StartTime.UtcDateTime;
+            var endUtc = request.EndTime.UtcDateTime;
+
+            var result = await _bookingService.CreateBookingAsync(request.RoomId, userId, startUtc, endUtc);
+
+            var jsonResponse = new
+            {
+                Id = result.Id,
+                RoomId = result.RoomId,
+                RoomName = result.RoomName,
+                UserId = result.UserId,
+                UserName = result.UserName,
+                StartTime = result.StartTime,
+                EndTime = result.EndTime,
+                TotalPrice = result.TotalPrice,
+                Status = result.Status,
+                CreatedAt = result.CreatedAt
+            };
+            return CreatedAtAction(nameof(GetByIdAsync), new { id = result.Id }, jsonResponse);
+
         }
 
         [HttpDelete]
@@ -91,6 +112,9 @@ namespace RoomBookingApi.Api.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 50);
+
             var userId = GetUserId();
             var result = await _bookingService.GetMyBookingsAsync(userId, page, pageSize);
             return Ok(result);

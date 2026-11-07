@@ -61,7 +61,12 @@ namespace RoomBookingApi.Application.Services
         {
             try
             {
-                await _unitOfWork.Rooms.DeleteByIdAsync(id);
+                var room = await _unitOfWork.Rooms.GetByIdAsync(id);
+                if (room == null)
+                    throw new NotFoundException(nameof(Room), id);
+
+                room.IsActive = false;
+                await _unitOfWork.Rooms.UpdateAsync(room);
                 await _unitOfWork.SaveChangesAsync();
             }
             catch (Exception ex)

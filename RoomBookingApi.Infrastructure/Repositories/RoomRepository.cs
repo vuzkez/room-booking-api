@@ -26,24 +26,9 @@ namespace RoomBookingApi.Infrastructure.Repositories
             return await _context.Rooms.FirstOrDefaultAsync(x => x.Id == id);
         }
 
-        public async Task<IEnumerable<Room>> GetAllAsync()
-        {
-            return await _context.Rooms.ToListAsync();
-        }
-
         public async Task AddAsync(Room room)
         {
             await _context.Rooms.AddAsync(room);
-        }
-
-        public async Task DeleteByIdAsync(int id)
-        {
-            var room = await _context.Rooms.FirstOrDefaultAsync(x => x.Id == id);
-
-            if (room == null)
-                throw new NotFoundException(nameof(Room), id);
-
-            _context.Rooms.Remove(room);
         }
 
         public async Task UpdateAsync(Room room)
@@ -72,6 +57,15 @@ namespace RoomBookingApi.Infrastructure.Repositories
                 .ToListAsync();
 
             return (totalCount, items);
+        }
+
+        public async Task<Room?> GetByIdForUpdateAsync(int id)
+        {
+            var rooms = await _context.Rooms
+                .FromSqlRaw("SELECT * FROM Rooms WHERE Id = {0} FOR UPDATE", id)
+                .ToListAsync();
+
+            return rooms.FirstOrDefault();
         }
     }
 }

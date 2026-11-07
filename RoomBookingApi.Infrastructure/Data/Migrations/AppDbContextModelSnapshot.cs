@@ -188,6 +188,10 @@ namespace RoomBookingApi.Infrastructure.Data.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("TargetEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 

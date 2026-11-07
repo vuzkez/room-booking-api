@@ -14,5 +14,6 @@ namespace RoomBookingApi.Domain.Entities
         public string Code { get; set; }
         public DateTime ExpiresAt { get; set; } 
         public bool IsUsed { get; set; }
+        public string? TargetEmail { get; set; }
     }
 }

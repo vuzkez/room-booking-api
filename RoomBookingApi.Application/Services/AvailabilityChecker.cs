@@ -19,11 +19,6 @@ namespace RoomBookingApi.Application.Services
         }
         public async Task<bool> IsAvailableAsync(int roomId, DateTime start, DateTime end)
         {
-            var room = await _uow.Rooms.GetByIdAsync(roomId);
-
-            if (room == null) 
-                return false;
-
             var hasOverlap = await _uow.Bookings.HasBookingBetweenTimeAsync(roomId, start, end);
             return !hasOverlap;
         }

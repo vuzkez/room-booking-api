@@ -1,15 +1,17 @@
+using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using RoomBookingApi.Api.Middleware;
-using RoomBookingApi.Application.Decorators;
 using RoomBookingApi.Application.Interfaces.Repositories;
+using RoomBookingApi.Infrastructure.Services;
 using RoomBookingApi.Application.Interfaces.Services;
 using RoomBookingApi.Application.Interfaces.Strategies;
+using RoomBookingApi.Application.Options;
 using RoomBookingApi.Application.Services;
 using RoomBookingApi.Application.Strategies;
 using RoomBookingApi.Domain.Entities;
@@ -32,15 +34,45 @@ namespace RoomBookingApi.Api
 
             builder.Services.AddIdentity<UserApplication, RoleApplication>(options =>
             {
-                options.Password.RequiredLength = 4;
+                options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+" +
+                    "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+                options.Password.RequiredLength = 8;
                 options.Password.RequireNonAlphanumeric = false;
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(10);
+                options.User.RequireUniqueEmail = true;
+                options.SignIn.RequireConfirmedEmail = true;
             }).AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
 
-            var jwtKey = builder.Configuration["Jwt:Key"];
-            var issuer = builder.Configuration["Jwt:Issuer"];
-            var audience = builder.Configuration["Jwt:Audience"];
-            var encodedKey = Encoding.UTF8.GetBytes(jwtKey!);
+            builder.Services.AddOptions<SeedDataSettings>()
+                .Bind(builder.Configuration.GetSection("SeedData"))
+                .Validate(x =>
+                    x.Roles != null &&
+                    x.Roles.Any() &&
+                    x.Roles.All(role => role == "Admin" || role == "User"),
+                    "Error configuration: Roles can be only 'Admin' or 'User', and list cannot be null.")
+                .Validate(x => x.AdminPassword.Length >= 8,
+                    "Admin password must be 8 or higher symbols.")
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            builder.Services.AddOptions<JwtSettings>()
+                .Bind(builder.Configuration.GetSection("Jwt"))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            builder.Services.AddOptions<EmailSettings>()
+                .Bind(builder.Configuration.GetSection("EmailSetting"))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            builder.Services.AddOptions<TelegramSettings>()
+                .Bind(builder.Configuration.GetSection("TelegramSetting"));
+
+            var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
+            var encodedKey = Encoding.UTF8.GetBytes(jwtSettings!.Key);
 
             builder.Services.AddAuthorization();
             builder.Services.AddAuthentication(options =>
@@ -52,20 +84,19 @@ namespace RoomBookingApi.Api
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateAudience = true,
-                    ValidAudience = audience,
+                    ValidAudience = jwtSettings.Audience,
                     ValidateIssuer = true,
-                    ValidIssuer = issuer,
+                    ValidIssuer = jwtSettings.Issuer,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(encodedKey),
                     ClockSkew = TimeSpan.FromMinutes(5),
                     ValidateLifetime = true
                 };
             });
-            builder.Services.AddMemoryCache();
             builder.Services.AddControllers();
             builder.Services.AddSwaggerGen(options =>
             {
-                options.SwaggerDoc("v1", new OpenApiInfo { Title = "My API", Version = "v1", Description = "API for booking rooms." });
+                options.SwaggerDoc("v1", new OpenApiInfo { Title = "Room Booking API V.1", Version = "v1", Description = "API for booking rooms." });
 
                 var securitySchema = new OpenApiSecurityScheme
                 {
@@ -96,11 +127,22 @@ namespace RoomBookingApi.Api
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
             builder.Services.AddHttpClient();
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("Anything", policy =>
+                {
+                    policy.WithOrigins("http://localhost:3000")   
+                          .AllowAnyMethod() 
+                          .AllowAnyHeader();
+                });
+            });
+
+
             builder.Services.AddScoped<IPricingStrategy,WeekdayPricingStrategy>();
             builder.Services.AddScoped<IPricingStrategy, WeekendPricingStrategy>();
+            builder.Services.AddScoped<IEmailConfirmOrChange, EmailConfirmOrChangeService>();
             builder.Services.AddScoped<PricingService>();
             builder.Services.AddScoped<IAvailabilityChecker, AvailabilityChecker>();
-            builder.Services.Decorate<IAvailabilityChecker, CachedAvailabilityChecker>();
             builder.Services.AddScoped<IJwtService, JwtService>();
             builder.Services.AddScoped<IUnitOfWork,UnitOfWork>();
             builder.Services.AddScoped<IEmailCodeGenerator, EmailCodeGeneratorService>();
@@ -109,14 +151,81 @@ namespace RoomBookingApi.Api
             builder.Services.AddScoped<IRoomService, RoomService>();
             builder.Services.AddScoped<IBookingService, BookingService>();
             builder.Services.AddScoped<ITelegramNotifier, TelegramNotifier>();
+            builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 
             builder.Services.AddRateLimiter(options =>
             {
-                options.AddFixedWindowLimiter("BookingLimit", opts =>
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+                options.AddPolicy("BookingLimit", httpContext =>
                 {
-                    opts.PermitLimit = 5;
-                    opts.Window = TimeSpan.FromMinutes(1);
-                    opts.QueueLimit = 0;
+                    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(userId, partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    });
+                });
+
+                options.AddPolicy("ResendCodeLimit", httpContext =>
+                {
+                    string clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp, partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 2,
+                        Window = TimeSpan.FromMinutes(3),
+                        QueueLimit = 0
+                    });
+                });
+
+                options.AddPolicy("ConfirmEmailLimit", httpContext =>
+                {
+                    string clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp, partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 4,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    });
+                });
+
+                options.AddPolicy("RegisterLimit", httpContext =>
+                {
+                    string clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp, partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(2),
+                        QueueLimit = 0
+                    });
+                });
+
+                options.AddPolicy("LoginLimit", httpContext =>
+                {
+                    string clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown-ip";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp, partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(3),
+                        QueueLimit = 0
+                    });
+                });
+
+                options.AddPolicy("EmailChangeLimit", httpContext =>
+                {
+                    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+                    return RateLimitPartition.GetFixedWindowLimiter($"change-{userId}", partition => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 3,
+                        Window = TimeSpan.FromMinutes(10),
+                        QueueLimit = 0
+                    });
                 });
             });
 
@@ -130,11 +239,18 @@ namespace RoomBookingApi.Api
                 app.UseSwaggerUI();
             }
 
-            app.UseRateLimiter();
+            app.UseHttpsRedirection();
+
+            app.UseCors("Anything");
 
             app.UseAuthentication();
             app.UseAuthorization();
+
+            app.UseRateLimiter();
+
             app.MapControllers();
+
+            app.MapHealthChecks("/health");
 
             if (app.Environment.IsDevelopment())
             {

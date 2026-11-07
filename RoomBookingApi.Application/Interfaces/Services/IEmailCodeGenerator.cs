@@ -1,19 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using RoomBookingApi.Domain.Entities;
+﻿using RoomBookingApi.Domain.Entities;
 
 namespace RoomBookingApi.Application.Interfaces.Services
 {
     public interface IEmailCodeGenerator
     {
         /// <summary>
-        /// Генерирует новый код подтверждения для указанного пользователя со сроком действия 5 минут.
+        /// Генерирует код подтверждения на 5 минут.
         /// </summary>
-        /// <param name="userId">Идентификатор пользователя.</param>
-        /// <returns>Сущность EmailConfirmationCode с заполненными полями (код, время истечения, признак использования).</returns>
-        EmailConfirmationCode Generate(int userId);
+        /// <param name="userId">ID пользователя.</param>
+        /// <param name="targetEmail">
+        /// null — подтверждение текущего email.
+        /// Задан — смена email на этот адрес.
+        /// </param>
+        EmailConfirmationCode Generate(int userId, string? targetEmail = null);
     }
 }

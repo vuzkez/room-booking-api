@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using RoomBookingApi.Domain.Entities;
 
 namespace RoomBookingApi.Infrastructure.Data
@@ -15,33 +16,32 @@ namespace RoomBookingApi.Infrastructure.Data
         {
             var roleManager = serviceProvider.GetRequiredService<RoleManager<RoleApplication>>();
             var userManager = serviceProvider.GetRequiredService<UserManager<UserApplication>>();
+            var settings = serviceProvider.GetRequiredService<IOptions<SeedDataSettings>>().Value;
 
-            var findAdmin = await userManager.FindByNameAsync("Admin");
-            if (findAdmin != null)
-                return;
-
-            if (!await roleManager.RoleExistsAsync("Admin"))
-                await roleManager.CreateAsync(new RoleApplication { Name = "Admin"});
-
-            if (!await roleManager.RoleExistsAsync("User"))
-                await roleManager.CreateAsync(new RoleApplication { Name = "User" });
-
-            var adminUser = new UserApplication
+            foreach (var roleName in settings.Roles)
             {
-                UserName = "Admin",
-                Email = "Admin@gmail.com",
-                SecurityStamp = Guid.NewGuid().ToString()
-            };
-
-            var result = await userManager.CreateAsync(adminUser, "Admin123");
-            if (!result.Succeeded)
-            {
-                var errors = string.Join("; ", result.Errors.Select(e => e.Description));
-                throw new Exception($"Ошибка создания администратора: {errors}");
+                if (!await roleManager.RoleExistsAsync(roleName))
+                    await roleManager.CreateAsync(new RoleApplication { Name = roleName });
             }
 
-            if (!await userManager.IsInRoleAsync(adminUser,"Admin"))
+            var adminUser = await userManager.FindByEmailAsync(settings.AdminEmail);
+            if (adminUser == null)
             {
+                adminUser = new UserApplication
+                {
+                    UserName = settings.AdminName,
+                    Email = settings.AdminEmail,
+                    EmailConfirmed = true,
+                    SecurityStamp = Guid.NewGuid().ToString()
+                };
+
+                var result = await userManager.CreateAsync(adminUser, settings.AdminPassword);
+                if (!result.Succeeded)
+                {
+                    var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+                    throw new Exception($"Error creating administrator: {errors}");
+                }
+
                 await userManager.AddToRoleAsync(adminUser, "Admin");
             }
         }

@@ -29,7 +29,18 @@ namespace RoomBookingApi.Api.Controllers
         public async Task<IActionResult> CreateAsync([FromBody] CreateRoomRequestDto request)
         {
             var result = await _roomService.CreateAsync(request);
-            return Ok(result);
+
+            var jsonResponse = new
+            {
+                Id = result.Id,
+                Name = result.Name,
+                Capacity = result.Capacity,
+                Location = result.Location,
+                PricePerHour = result.PricePerHour,
+                IsActive = result.IsActive
+            };
+
+            return CreatedAtAction(nameof(GetByIdAsync),new { id = result.Id },jsonResponse);
         }
 
         [HttpPut]
@@ -58,6 +69,9 @@ namespace RoomBookingApi.Api.Controllers
             [FromQuery]int page = 1,
             [FromQuery]int pageSize = 10)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 50);
+
             var filter = new RoomFilterDto {
                 IsActive = IsActive,
                 Location = location,

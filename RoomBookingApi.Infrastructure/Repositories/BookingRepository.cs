@@ -27,24 +27,9 @@ namespace RoomBookingApi.Infrastructure.Repositories
             return await _context.Bookings.FirstOrDefaultAsync(x => x.Id == id);
         }
 
-        public async Task<IEnumerable<Booking>> GetAllAsync()
-        {
-            return await _context.Bookings.ToListAsync();
-        }
-
         public async Task AddAsync(Booking booking)
         {
             await _context.Bookings.AddAsync(booking);
-        }
-
-        public async Task DeleteByIdAsync(int id)
-        {
-            var booking = await _context.Bookings.FirstOrDefaultAsync(x => x.Id == id);
-
-            if (booking == null)
-                throw new NotFoundException(nameof(Booking), id);
-
-            _context.Bookings.Remove(booking);
         }
 
         public async Task UpdateAsync(Booking booking)
@@ -52,25 +37,27 @@ namespace RoomBookingApi.Infrastructure.Repositories
             _context.Bookings.Update(booking);
         }
 
-        public async Task<List<Booking>> GetAllByUserId(int userId)
-        {
-            return await _context.Bookings.Where(x => x.UserId == userId).ToListAsync();
-        }
-
-        public async Task<List<Booking>> GetPagedAsync(int page, int pageSize)
-        {
-            return await _context.Bookings.OrderBy(x => x.StartTime).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        }
-
-        public async Task<List<Booking>> GetPagedByUserIdAsync(int userId, int page, int pageSize)
+        public async Task<List<BookingResponseDto>> GetPagedByUserIdAsync(int userId, int page, int pageSize)
         {
             return await _context.Bookings
+                .AsNoTracking()
                 .Where(x => x.UserId == userId)
-                .Include(x => x.Room)
-                .Include(x => x.User)
                 .OrderBy(x => x.StartTime)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
+                .Select(b => new BookingResponseDto
+                {
+                    Id = b.Id,
+                    RoomId = b.RoomId,
+                    RoomName = b.Room.RoomName,
+                    UserId = b.UserId,
+                    UserName = b.User.UserName,
+                    StartTime = b.StartTime,
+                    EndTime = b.EndTime,
+                    TotalPrice = b.TotalPrice,
+                    Status = b.Status,
+                    CreatedAt = b.CreatedAt
+                })
                 .ToListAsync();
         }
 
@@ -81,24 +68,14 @@ namespace RoomBookingApi.Infrastructure.Repositories
                 .CountAsync();
         }
 
-        public async Task<(int TotalCount, List<Booking> Items)> GetPagedByRoomIdWithFiltersAsync(int roomId, BookingFilterDto filter, int page, int pageSize)
+        public async Task<(int TotalCount, List<BookingResponseDto> Items)> GetPagedByRoomIdWithFiltersAsync(int roomId, BookingFilterDto filter, int page, int pageSize)
         {
-            IQueryable<Booking> query = _context.Bookings
-                .Where(b => b.RoomId == roomId)
-                .Include(b => b.Room)
-                .Include(b => b.User);
+            IQueryable<Booking> query = _context.Bookings.AsNoTracking().Where(b => b.RoomId == roomId);
 
-            if (filter.From.HasValue)
-                query = query.Where(b => b.StartTime >= filter.From.Value);
-
-            if (filter.To.HasValue)
-                query = query.Where(b => b.EndTime <= filter.To.Value);
-
-            if (filter.Status.HasValue)
-                query = query.Where(b => b.Status == filter.Status.Value);
-
-            if (filter.UserId.HasValue)
-                query = query.Where(b => b.UserId == filter.UserId.Value);
+            if (filter.From.HasValue) query = query.Where(b => b.StartTime >= filter.From.Value);
+            if (filter.To.HasValue) query = query.Where(b => b.EndTime <= filter.To.Value);
+            if (filter.Status.HasValue) query = query.Where(b => b.Status == filter.Status.Value);
+            if (filter.UserId.HasValue) query = query.Where(b => b.UserId == filter.UserId.Value);
 
             var totalCount = await query.CountAsync();
 
@@ -106,21 +83,50 @@ namespace RoomBookingApi.Infrastructure.Repositories
                 .OrderBy(b => b.StartTime)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
+                .Select(b => new BookingResponseDto
+                {
+                    Id = b.Id,
+                    RoomId = b.RoomId,
+                    RoomName = b.Room.RoomName,
+                    UserId = b.UserId,
+                    UserName = b.User.UserName,
+                    StartTime = b.StartTime,
+                    EndTime = b.EndTime,
+                    TotalPrice = b.TotalPrice,
+                    Status = b.Status,
+                    CreatedAt = b.CreatedAt
+                })
                 .ToListAsync();
 
             return (totalCount, items);
         }
 
-        public async Task<Booking?> GetByIdWithIncludesAsync(int id)
+        public async Task<BookingResponseDto?> GetByIdWithIncludesAsync(int id)
         {
-            return await _context.Bookings.Include(x => x.User).Include(x => x.Room).FirstOrDefaultAsync(x => x.Id == id);
+            return await _context.Bookings
+                .AsNoTracking()
+                .Where(b => b.Id == id)
+                .Select(b => new BookingResponseDto
+                {
+                    Id = b.Id,
+                    RoomId = b.RoomId,
+                    RoomName = b.Room.RoomName,
+                    UserId = b.UserId,
+                    UserName = b.User.UserName,
+                    StartTime = b.StartTime,
+                    EndTime = b.EndTime,
+                    TotalPrice = b.TotalPrice,
+                    Status = b.Status,
+                    CreatedAt = b.CreatedAt
+                })
+                .FirstOrDefaultAsync();
         }
 
         public async Task<bool> HasBookingBetweenTimeAsync(int roomId, DateTime start, DateTime end)
         {
             return await _context.Bookings
                 .AnyAsync(b => b.RoomId == roomId
-                               && b.Status == Status.Confirmed
+                               && (b.Status == Status.Confirmed || b.Status == Status.Pending)
                                && b.StartTime < end
                                && b.EndTime > start);
         }

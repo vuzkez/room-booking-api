@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using RoomBookingApi.Domain.Entities;
-
-namespace RoomBookingApi.Application.Interfaces.Services
+﻿namespace RoomBookingApi.Application.Interfaces.Services
 {
     public interface IAvailabilityChecker
     {
         /// <summary>
-        /// Проверяет, свободна ли комната в указанный период с учётом подтверждённых броней.
+        /// Проверяет, свободна ли комната в указанный период.
+        /// Учитываются активные брони - в статусах Pending и Confirmed (отменённые игнорируются).
         /// </summary>
         /// <param name="roomId">Идентификатор комнаты.</param>
         /// <param name="start">Начало интервала (UTC).</param>

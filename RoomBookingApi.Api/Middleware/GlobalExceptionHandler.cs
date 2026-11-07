@@ -21,7 +21,10 @@ namespace RoomBookingApi.Api.Middleware
             Exception exception,
             CancellationToken cancellationToken)
         {
-            _logger.LogError(exception, "Exception occurred: {Message}", exception.Message);
+            if (exception is NotFoundException || exception is BookingConflictException)
+                _logger.LogWarning(exception, "Business flow exception: {Message}", exception.Message);
+            else
+                _logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
 
             var problemDetails = new ProblemDetails
             {
@@ -33,6 +36,12 @@ namespace RoomBookingApi.Api.Middleware
                 case NotFoundException:
                     problemDetails.Status = StatusCodes.Status404NotFound;
                     problemDetails.Title = "Resource not found";
+                    problemDetails.Detail = exception.Message;
+                    break;
+
+                case ArgumentException:
+                    problemDetails.Status = StatusCodes.Status400BadRequest;
+                    problemDetails.Title = "Bad Request";
                     problemDetails.Detail = exception.Message;
                     break;
 
@@ -55,15 +64,13 @@ namespace RoomBookingApi.Api.Middleware
                     problemDetails.Detail = exception.Message;
                     break;
 
-                case EmailSettingsNullException:
-                case JwtSettingsNullException:
                 case DbUpdateException:
                 case CommandException:
                 case ProtocolException:
                 default:
                     problemDetails.Status = StatusCodes.Status500InternalServerError;
                     problemDetails.Title = "Internal server error";
-                    problemDetails.Detail = exception.Message;
+                    problemDetails.Detail = "An unexpected error occurred.";
                     break;
             }
 

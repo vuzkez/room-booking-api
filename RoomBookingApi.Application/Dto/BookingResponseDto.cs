@@ -13,7 +13,7 @@ namespace RoomBookingApi.Application.Dto
         public int RoomId { get; set; }
         public string RoomName { get; set; }
         public int UserId { get; set; }
-        public string UserName { get; set; }
+        public string? UserName { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public decimal TotalPrice { get; set; }

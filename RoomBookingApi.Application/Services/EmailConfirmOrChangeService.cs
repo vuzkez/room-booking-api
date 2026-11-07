@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,77 +16,99 @@ namespace RoomBookingApi.Application.Services
         private readonly UserManager<UserApplication> _userManager;
         private readonly ILogger<EmailConfirmOrChangeService> _logger;
 
-        public EmailConfirmOrChangeService(IUnitOfWork unitOfWork, UserManager<UserApplication> userManager,ILogger<EmailConfirmOrChangeService> logger)
+        public EmailConfirmOrChangeService(
+            IUnitOfWork unitOfWork,
+            UserManager<UserApplication> userManager,
+            ILogger<EmailConfirmOrChangeService> logger)
         {
             _uow = unitOfWork;
             _userManager = userManager;
             _logger = logger;
         }
-        public async Task<bool> TryConfirmOrChangeEmail(int userId, string code,string? newEmail = null)
+
+        public async Task<bool> TryConfirmEmailAsync(int userId, string code)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null)
                 return false;
 
-            var oldEmail = user.Email;
-            var userCode = await _uow.Codes.GetByUserIdAndCodeAsync(userId,code);
-            if (userCode == null || userCode.ExpiresAt < DateTime.UtcNow || userCode.IsUsed)
+            var userCode = await _uow.Codes.GetByUserIdAndCodeAsync(userId, code);
+            if (userCode == null || userCode.IsUsed || userCode.ExpiresAt < DateTime.UtcNow)
+                return false;
+
+            if (userCode.TargetEmail != null)
                 return false;
 
             try
             {
-                if (newEmail == null)
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                var result = await _userManager.ConfirmEmailAsync(user, token);
+
+                if (!result.Succeeded)
                 {
-                    var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                    var result = await _userManager.ConfirmEmailAsync(user, token);
-                    if (result.Succeeded)
+                    foreach (var error in result.Errors)
                     {
-                        userCode.IsUsed = true;
-                        await _uow.Codes.UpdateAsync(userCode);
-                        await _uow.SaveChangesAsync();
-                        _logger.LogInformation("User with Id: {userId} confirm email.", userId);
-                        return true;
+                        _logger.LogWarning("Error Identity: {Code} - {Description}", error.Code, error.Description);
                     }
-                    else
-                    {
-                        foreach (var error in result.Errors)
-                        {
-                            _logger.LogWarning("Error Identity: {Code} - {Description}", error.Code, error.Description);
-                        }
-                    }
+                    return false;
                 }
-                else
-                {
-                    var token = await _userManager.GenerateChangeEmailTokenAsync(user, newEmail);
-                    var result = await _userManager.ChangeEmailAsync(user, newEmail, token);
-                    if (result.Succeeded)
-                    {
-                        userCode.IsUsed = true;
-                        await _uow.Codes.UpdateAsync(userCode);
-                        await _uow.SaveChangesAsync();
-                        _logger.LogInformation("User with Id: {userId} change email from: {oldEmail} to: {newEmail}.", userId, oldEmail, newEmail);
-                        return true;
-                    }
-                    else
-                    {
-                        foreach (var error in result.Errors)
-                        {
-                            _logger.LogWarning("Error Identity: {Code} - {Description}", error.Code, error.Description);
-                        }
-                    }
-                }
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Exception form database. Message: {exMessage}", ex.Message);
-                throw;
+
+                userCode.IsUsed = true;
+                await _uow.Codes.UpdateAsync(userCode);
+                await _uow.SaveChangesAsync();
+
+                _logger.LogInformation("User with Id: {userId} confirm email.", userId);
+                return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Exception on method:{nameofMethod}. Message: {exMessage}", nameof(EmailConfirmOrChangeService.TryConfirmOrChangeEmail), ex.Message);
+                _logger.LogError(ex, "Exception on method: {nameofMethod}. Message: {exMessage}", nameof(EmailConfirmOrChangeService.TryConfirmEmailAsync), ex.Message);
                 throw;
             }
-            return false;
+        }
+
+        public async Task<bool> TryChangeEmailAsync(int userId, string code)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+                return false;
+
+            var userCode = await _uow.Codes.GetByUserIdAndCodeAsync(userId, code);
+            if (userCode == null || userCode.IsUsed || userCode.ExpiresAt < DateTime.UtcNow)
+                return false;
+
+            if (userCode.TargetEmail == null)
+                return false;
+
+            var oldEmail = user.Email;
+            var newEmail = userCode.TargetEmail;
+
+            try
+            {
+                var token = await _userManager.GenerateChangeEmailTokenAsync(user, newEmail);
+                var result = await _userManager.ChangeEmailAsync(user, newEmail, token);
+
+                if (!result.Succeeded)
+                {
+                    foreach (var error in result.Errors)
+                    {
+                        _logger.LogWarning("Error Identity: {Code} - {Description}", error.Code, error.Description);
+                    }
+                    return false;
+                }
+
+                userCode.IsUsed = true;
+                await _uow.Codes.UpdateAsync(userCode);
+                await _uow.SaveChangesAsync();
+
+                _logger.LogInformation("User with Id: {userId} change email from: {oldEmail} to: {newEmail}.", userId, oldEmail, newEmail);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception on method: {nameofMethod}. Message: {exMessage}", nameof(EmailConfirmOrChangeService.TryChangeEmailAsync), ex.Message);
+                throw;
+            }
         }
     }
 }

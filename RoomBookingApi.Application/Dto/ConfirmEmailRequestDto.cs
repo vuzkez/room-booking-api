@@ -9,5 +9,6 @@ namespace RoomBookingApi.Application.Dto
     public class ConfirmEmailRequestDto
     {
         public string Code { get; set; }
+        public string Email { get; set; }
     }
 }

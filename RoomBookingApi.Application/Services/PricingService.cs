@@ -18,16 +18,27 @@ namespace RoomBookingApi.Application.Services
             _strategies = strategies;
         }
 
-        public decimal CalculatePrice(Room room,DateTime start, DateTime end)
+        public decimal CalculatePrice(Room room, DateTime start, DateTime end)
         {
-            var isWeekend = start.DayOfWeek == DayOfWeek.Saturday || start.DayOfWeek == DayOfWeek.Sunday;
+            decimal totalPrice = 0;
+            var current = start;
 
-            if (isWeekend)
+            while (current < end)
             {
-                return _strategies.OfType<WeekendPricingStrategy>().First().CalculatePrice(room,start,end);
+                var nextHour = current.AddHours(1);
+                if (nextHour > end) 
+                    nextHour = end;
+
+                var hoursInSegment = (decimal)(nextHour - current).TotalHours;
+
+                var strategy = _strategies.First(s => s.AppliesTo(current, nextHour));
+
+                totalPrice += strategy.CalculatePrice(room, current, nextHour);
+
+                current = nextHour;
             }
 
-            return _strategies.OfType<WeekdayPricingStrategy>().First().CalculatePrice(room, start, end);
+            return totalPrice;
         }
     }
 }
