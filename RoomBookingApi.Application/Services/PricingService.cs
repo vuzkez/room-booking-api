@@ -25,20 +25,19 @@ namespace RoomBookingApi.Application.Services
 
             while (current < end)
             {
-                var nextFiveMinute = current.AddMinutes(5);
-                if (nextFiveMinute > end)
-                    nextFiveMinute = end;
+                var nextHour = current.AddHours(1);
+                if (nextHour > end)
+                    nextHour = end;
 
-                var hoursInSegment = (decimal)(nextFiveMinute - current).TotalHours;
+                var strategy = _strategies.FirstOrDefault(s => s.AppliesTo(current, nextHour))
+                    ?? throw new InvalidOperationException("No pricing strategy applies to the given period.");
 
-                var strategy = _strategies.First(s => s.AppliesTo(current, nextFiveMinute));
-
-                totalPrice += strategy.CalculatePrice(room, current, nextFiveMinute);
-
-                current = nextFiveMinute;
+                totalPrice += strategy.CalculatePrice(room, current, nextHour);
+                current = nextHour;
             }
 
-            return totalPrice;
+            return Math.Round(totalPrice, 2, MidpointRounding.AwayFromZero);
         }
+
     }
 }

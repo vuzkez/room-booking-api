@@ -9,8 +9,14 @@ namespace RoomBookingApi.Application.Dto
 {
     public class LoginRequestDto
     {
+
+        [Required]
         [EmailAddress]
+        [StringLength(256)]
         public string Email { get; set; }
+
+        [Required]
+        [StringLength(100)]
         public string Password { get; set; }
     }
 }

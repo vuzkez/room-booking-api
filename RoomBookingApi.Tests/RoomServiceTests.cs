@@ -1,14 +1,15 @@
-using Xunit;
-using NSubstitute;
-using RoomBookingApi.Application.Services;
-using RoomBookingApi.Application.Interfaces.Repositories;
-using RoomBookingApi.Application.Dto;
-using RoomBookingApi.Domain.Entities;
-using RoomBookingApi.Application.Exceptions;
-using Microsoft.Extensions.Logging;
-using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
+using RoomBookingApi.Application.Dto;
+using RoomBookingApi.Application.Exceptions;
+using RoomBookingApi.Application.Interfaces.Repositories;
+using RoomBookingApi.Application.Services;
+using RoomBookingApi.Domain.Entities;
+using Xunit;
 
 namespace RoomBookingApi.Tests
 {
@@ -17,75 +18,75 @@ namespace RoomBookingApi.Tests
         private readonly IUnitOfWork _uow;
         private readonly IRoomRepository _roomRepo;
         private readonly ILogger<RoomService> _logger;
-        private readonly RoomService _service;
+        private readonly RoomService _sut;
 
         public RoomServiceTests()
         {
-            // Создаём моки зависимостей
+            _uow = Substitute.For<IUnitOfWork>();
             _roomRepo = Substitute.For<IRoomRepository>();
             _logger = Substitute.For<ILogger<RoomService>>();
-            _uow = Substitute.For<IUnitOfWork>();
             _uow.Rooms.Returns(_roomRepo);
 
-            // Создаём экземпляр тестируемого сервиса
-            _service = new RoomService(_logger, _uow);
+            _sut = new RoomService(_logger, _uow);
         }
 
-        /// <summary>
-        /// Тест: получение комнаты по ID, когда она существует.
-        /// Проверяет, что возвращается корректный DTO с правильными данными.
-        /// </summary>
         [Fact]
-        public async Task GetByIdAsync_ShouldReturnRoomDto_WhenRoomExists()
+        public async Task GetByIdAsync_ShouldReturnDto_WhenRoomExists()
         {
-            // Arrange
-            int roomId = 1;
-            var room = new Room { Id = roomId, RoomName = "Conf Room", Capacity = 10 };
-            _roomRepo.GetByIdAsync(roomId).Returns(room);
+            var room = new Room
+            {
+                Id = 1,
+                RoomName = "Conf",
+                Capacity = 10,
+                Location = "Floor 1",
+                PricePerHour = 100m,
+                IsActive = true
+            };
+            _roomRepo.GetByIdAsync(1).Returns(room);
 
-            // Act
-            var result = await _service.GetByIdAsync(roomId);
+            var result = await _sut.GetByIdAsync(1);
 
-            // Assert
             Assert.NotNull(result);
-            Assert.Equal(roomId, result.Id);
-            Assert.Equal("Conf Room", result.Name);
-            await _roomRepo.Received(1).GetByIdAsync(roomId);
+            Assert.Equal(1, result.Id);
+            Assert.Equal("Conf", result.Name);
+            Assert.Equal(10, result.Capacity);
+            Assert.Equal("Floor 1", result.Location);
+            Assert.Equal(100m, result.PricePerHour);
+            Assert.True(result.IsActive);
         }
 
-        /// <summary>
-        /// Тест: получение списка комнат с пагинацией и фильтрацией.
-        /// Проверяет, что возвращается PagedResult с правильным количеством записей и метаданными.
-        /// </summary>
+        [Fact]
+        public async Task GetByIdAsync_ShouldThrowNotFound_WhenMissing()
+        {
+            _roomRepo.GetByIdAsync(999).Returns((Room?)null);
+
+            await Assert.ThrowsAsync<NotFoundException>(() => _sut.GetByIdAsync(999));
+        }
+
         [Fact]
         public async Task GetAllAsync_ShouldReturnPagedRooms()
         {
-            // Arrange
             var filter = new RoomFilterDto { MinCapacity = 5 };
             var rooms = new List<Room>
             {
-                new Room { Id = 1, RoomName = "Room A", Capacity = 10 },
-                new Room { Id = 2, RoomName = "Room B", Capacity = 8 }
+                new Room { Id = 1, RoomName = "A", Capacity = 10 },
+                new Room { Id = 2, RoomName = "B", Capacity = 8 }
             };
             _roomRepo.GetPagedWithFiltersAsync(filter, 1, 10).Returns((2, rooms));
 
-            // Act
-            var result = await _service.GetAllAsync(filter, 1, 10);
+            var result = await _sut.GetAllAsync(filter, 1, 10);
 
-            // Assert
             Assert.Equal(2, result.TotalCount);
             Assert.Equal(2, result.Items.Count());
+            Assert.Equal(1, result.Page);
+            Assert.Equal(10, result.PageSize);
+            Assert.Equal(1, result.TotalPages);
             await _roomRepo.Received(1).GetPagedWithFiltersAsync(filter, 1, 10);
         }
 
-        /// <summary>
-        /// Тест: создание новой комнаты.
-        /// Проверяет, что комната добавляется в репозиторий, сохраняется и возвращается корректный DTO.
-        /// </summary>
         [Fact]
-        public async Task CreateAsync_ShouldAddRoomAndReturnDto()
+        public async Task CreateAsync_ShouldAddAndSaveRoom()
         {
-            // Arrange
             var request = new CreateRoomRequestDto
             {
                 Name = "New Room",
@@ -94,82 +95,98 @@ namespace RoomBookingApi.Tests
                 PricePerHour = 150m
             };
             _roomRepo.AddAsync(Arg.Any<Room>()).Returns(Task.CompletedTask);
-            _uow.SaveChangesAsync().Returns(1);
+            _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(1);
 
-            // Act
-            var result = await _service.CreateAsync(request);
+            var result = await _sut.CreateAsync(request);
 
-            // Assert
             Assert.NotNull(result);
-            Assert.Equal(request.Name, result.Name);
-            await _roomRepo.Received(1).AddAsync(Arg.Any<Room>());
-            await _uow.Received(1).SaveChangesAsync();
+            Assert.Equal("New Room", result.Name);
+            Assert.Equal(20, result.Capacity);
+            Assert.Equal("Floor 3", result.Location);
+            Assert.Equal(150m, result.PricePerHour);
+            Assert.True(result.IsActive);
+
+            await _roomRepo.Received(1).AddAsync(Arg.Is<Room>(r =>
+                r.RoomName == "New Room" &&
+                r.Capacity == 20 &&
+                r.Location == "Floor 3" &&
+                r.PricePerHour == 150m &&
+                r.IsActive));
+            await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
-        /// <summary>
-        /// Тест: обновление существующей комнаты.
-        /// Проверяет, что данные обновляются, изменения сохраняются и возвращается обновлённый DTO.
-        /// </summary>
         [Fact]
-        public async Task UpdateByIdAsync_ShouldUpdateRoomAndReturnDto()
+        public async Task UpdateByIdAsync_ShouldModifyAndReturnDto()
         {
-            // Arrange
-            int roomId = 1;
-            var existing = new Room { Id = roomId, RoomName = "Old", Capacity = 5 };
-            var request = new UpdateRoomRequestDto
+            var existing = new Room
             {
-                Name = "New Name",
-                Capacity = 10,
-                Location = "Floor 2",
-                PricePerHour = 200m,
+                Id = 1,
+                RoomName = "Old",
+                Capacity = 5,
+                Location = "F1",
+                PricePerHour = 100m,
                 IsActive = true
             };
-            _roomRepo.GetByIdAsync(roomId).Returns(existing);
-            _uow.SaveChangesAsync().Returns(1);
+            _roomRepo.GetByIdAsync(1).Returns(existing);
+            _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(1);
 
-            // Act
-            var result = await _service.UpdateByIdAsync(roomId, request);
+            var request = new UpdateRoomRequestDto
+            {
+                Name = "New",
+                Capacity = 10,
+                Location = "F2",
+                PricePerHour = 200m,
+                IsActive = false
+            };
 
-            // Assert
-            Assert.Equal(request.Name, result.Name);
-            await _roomRepo.Received(1).UpdateAsync(Arg.Any<Room>());
-            await _uow.Received(1).SaveChangesAsync();
+            var result = await _sut.UpdateByIdAsync(1, request);
+
+            Assert.Equal("New", result.Name);
+            Assert.Equal(10, result.Capacity);
+            Assert.Equal("F2", result.Location);
+            Assert.Equal(200m, result.PricePerHour);
+            Assert.False(result.IsActive);
+
+            await _roomRepo.Received(1).UpdateAsync(existing);
+            await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
-        /// <summary>
-        /// Тест: удаление комнаты, которая существует.
-        /// Проверяет, что метод DeleteByIdAsync вызывается и изменения сохраняются.
-        /// </summary>
         [Fact]
-        public async Task DeleteByIdAsync_ShouldDeleteRoom_WhenRoomExists()
+        public async Task UpdateByIdAsync_ShouldThrowNotFound_WhenMissing()
         {
-            // Arrange
-            int roomId = 1;
-            _roomRepo.DeleteByIdAsync(roomId).Returns(Task.CompletedTask);
-            _uow.SaveChangesAsync().Returns(1);
+            _roomRepo.GetByIdAsync(999).Returns((Room?)null);
 
-            // Act
-            await _service.DeleteByIdAsync(roomId);
-
-            // Assert
-            await _roomRepo.Received(1).DeleteByIdAsync(roomId);
-            await _uow.Received(1).SaveChangesAsync();
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                _sut.UpdateByIdAsync(999, new UpdateRoomRequestDto
+                {
+                    Name = "X",
+                    Capacity = 1,
+                    Location = "L",
+                    PricePerHour = 100m,
+                    IsActive = true
+                }));
         }
 
-        /// <summary>
-        /// Тест: удаление комнаты, которая не существует.
-        /// Проверяет, что выбрасывается исключение NotFoundException.
-        /// </summary>
         [Fact]
-        public async Task DeleteByIdAsync_ShouldThrowNotFoundException_WhenRoomDoesNotExist()
+        public async Task DeleteByIdAsync_ShouldSoftDeleteAndSave()
         {
-            // Arrange
-            int roomId = 999;
-            _roomRepo.When(x => x.DeleteByIdAsync(roomId))
-                     .Do(x => throw new NotFoundException(nameof(Room), roomId));
+            var room = new Room { Id = 1, RoomName = "A", IsActive = true };
+            _roomRepo.GetByIdAsync(1).Returns(room);
+            _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(1);
 
-            // Act & Assert
-            await Assert.ThrowsAsync<NotFoundException>(() => _service.DeleteByIdAsync(roomId));
+            await _sut.DeleteByIdAsync(1);
+
+            Assert.False(room.IsActive);
+            await _roomRepo.Received(1).UpdateAsync(room);
+            await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        }
+
+        [Fact]
+        public async Task DeleteByIdAsync_ShouldThrowNotFound_WhenMissing()
+        {
+            _roomRepo.GetByIdAsync(999).Returns((Room?)null);
+
+            await Assert.ThrowsAsync<NotFoundException>(() => _sut.DeleteByIdAsync(999));
         }
     }
 }
